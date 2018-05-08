@@ -147,6 +147,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param learning_rate: TF Placeholder for learning rate
     """
     losses =[]
+    loss = 0.0
     for epoch in range(epochs):
         for images, labels in get_batches_fn(batch_size):
             #print("Feature Shape: {}, Label Shape: {}.".format(images.shape,labels.shape))
@@ -212,7 +213,7 @@ def run():
 
         # TF save the graph and checkpoint
         saver.save(sess,'data/model1/model1')
-        print("Finish saving the model")
+        print("Finish saving the model!")
 
         # TODO: Save inference data using helper.save_inference_samples
         #helper.save_inference_samples(RUNS_DIR, DATA_DIR, sess, IMAGE_SHAPE, logits, keep_prob, image_input)
