@@ -8,8 +8,8 @@ import project_tests as tests
 
 
 #######--HYPER PARAMETERS--############################
-EPOCHS = 5 #20 #10
-BATCH_SIZE = 16 #32
+EPOCHS = 10 #20 #10
+BATCH_SIZE = 32 #32
 KEEP_PROB = 0.5
 LEARNING_RATE = 0.0009 #0.00001 #0.0001 #0.0009
 REG_SCALE = 1e-3   # L2 regularizer scale
@@ -32,10 +32,10 @@ assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFl
 print('TensorFlow Version: {}'.format(tf.__version__))
 
 # Check for a GPU
-'''if not tf.test.gpu_device_name():
+if not tf.test.gpu_device_name():
     warnings.warn('No GPU found. Please use a GPU to train your neural network.')
 else:
-    print('Default GPU Device: {}'.format(tf.test.gpu_device_name())) '''
+    print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
 
 
 def load_vgg(sess, vgg_path):
@@ -147,7 +147,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param learning_rate: TF Placeholder for learning rate
     """
     losses =[]
-    loss = 0.0
+    loss = 1000.0
     for epoch in range(epochs):
         for images, labels in get_batches_fn(batch_size):
             #print("Feature Shape: {}, Label Shape: {}.".format(images.shape,labels.shape))
@@ -164,7 +164,7 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     # save the model
     #saver.save(sess, MODEL_SAVE_FILE) 
     
-#tests.test_train_nn(train_nn)
+tests.test_train_nn(train_nn)
 
 
 def run():
@@ -182,7 +182,7 @@ def run():
         # Path to vgg model
         vgg_path = os.path.join(DATA_DIR, 'vgg')
         # Create function to get batches
-        get_batches_fn = helper.gen_batch_function2(os.path.join(DATA_DIR, 'train'), IMAGE_SHAPE)
+        get_batches_fn = helper.gen_batch_function2(os.path.join(DATA_DIR, 'Train'), IMAGE_SHAPE)
 
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
