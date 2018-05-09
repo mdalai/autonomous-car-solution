@@ -138,8 +138,8 @@ def gen_batch_function2(data_folder, image_shape):
                 images.append(image)
                 gt_labels.append(gt_label)
 
-            print("Batch: {}, Feature Shape: {}, Label Shape: {}.".
-            format(batch_i,np.array(images).shape,np.array(gt_labels).shape))
+            #print("Batch: {}, Feature Shape: {}, Label Shape: {}.".
+            #format(batch_i,np.array(images).shape,np.array(gt_labels).shape))
 
             yield np.array(images), np.array(gt_labels)
     return get_batches_fn2
@@ -172,6 +172,38 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
         yield os.path.basename(image_file), np.array(street_im)
 
 
+def gen_test_output2(sess, logits, keep_prob, image_pl, data_folder, image_shape):
+    """
+    Generate test output using the test images
+    :param sess: TF session
+    :param logits: TF Tensor for the logits
+    :param keep_prob: TF Placeholder for the dropout keep robability
+    :param image_pl: TF Placeholder for the image placeholder
+    :param data_folder: Path to the folder that contains the datasets
+    :param image_shape: Tuple - Shape of image
+    :return: Output for for each test image
+    """
+    for image_file in glob(os.path.join(data_folder, '*.png')):
+        image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
+
+        im_softmax = sess.run(
+            [tf.nn.softmax(logits)],
+            {keep_prob: 1.0, image_pl: [image]})
+        im_softmax_car = im_softmax[0][:, 0].reshape(image_shape[0], image_shape[1])
+        im_softmax_road = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
+        segmentation_car = (im_softmax_car > 0.5).reshape(image_shape[0], image_shape[1], 1)
+        segmentation_road = (im_softmax_road > 0.5).reshape(image_shape[0], image_shape[1], 1)
+        mask_car = np.dot(segmentation_car, np.array([[255, 0, 0, 127]]))
+        mask_car = scipy.misc.toimage(mask_car, mode="RGBA")
+        mask_road = np.dot(segmentation_road, np.array([[0, 255, 0, 127]]))
+        mask_road = scipy.misc.toimage(mask_road, mode="RGBA")
+        street_im = scipy.misc.toimage(image)
+        street_im.paste(mask_car, box=None, mask=mask_car)
+        street_im.paste(mask_road, box=None, mask=mask_road)
+
+        yield os.path.basename(image_file), np.array(street_im)
+
+
 def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image):
     # Make folder for current run
     output_dir = os.path.join(runs_dir, str(time.time()))
@@ -181,7 +213,7 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
 
     # Run NN on test images and save them to HD
     print('Training Finished. Saving test images to: {}'.format(output_dir))
-    image_outputs = gen_test_output(
+    image_outputs = gen_test_output2(
         #sess, logits, keep_prob, input_image, os.path.join(data_dir, 'data_road/testing'), image_shape)
         sess, logits, keep_prob, input_image, os.path.join(data_dir, 'test'), image_shape)
     for name, image in image_outputs:
