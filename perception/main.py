@@ -132,7 +132,7 @@ tests.test_optimize(optimize)
 
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
-             correct_label, keep_prob, learning_rate, logits):
+             correct_label, keep_prob, learning_rate):
     """
     Train neural network and print out the loss during training.
     :param sess: TF Session
@@ -147,11 +147,11 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param learning_rate: TF Placeholder for learning rate
     """
     losses =[]
-    loss = 1000.0
+    loss = 10000.0
     for epoch in range(epochs):
         for images, labels in get_batches_fn(batch_size):
             #print("Feature Shape: {}, Label Shape: {}.".format(images.shape,labels.shape))
-            _, loss, logits = sess.run([train_op, cross_entropy_loss, tf.nn.softmax(logits)], 
+            _, loss = sess.run([train_op, cross_entropy_loss], 
                 feed_dict = { input_image: images, correct_label: labels, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE })
 
             #print("Logits Shape: {}, Logits: {}.".format(logits.shape,logits))           
@@ -209,14 +209,14 @@ def run():
         saver = tf.train.Saver()
 
         # TODO: Train NN using the train_nn function
-        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, image_input, labels, keep_prob, learning_rate, logits)
+        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, image_input, labels, keep_prob, learning_rate)
 
         # TF save the graph and checkpoint
         saver.save(sess,'data/model1/model1')
         print("Finish saving the model!")
 
         # TODO: Save inference data using helper.save_inference_samples
-        #helper.save_inference_samples(RUNS_DIR, DATA_DIR, sess, IMAGE_SHAPE, logits, keep_prob, image_input)
+        helper.save_inference_samples(RUNS_DIR, DATA_DIR, sess, IMAGE_SHAPE, logits, keep_prob, image_input)
 
         # OPTIONAL: Apply the trained model to a video
 
