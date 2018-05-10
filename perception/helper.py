@@ -116,6 +116,8 @@ def gen_batch_function2(data_folder, image_shape):
         car_color = np.array([10, 0, 0])
         # Roads - class 7
         road_color = np.array([7, 0, 0])
+        # RoadLines - class 6
+        roadline_color = np.array([6, 0, 0])
 
         # pair image_paths and label_paths before shuffle
         paths = list(zip(image_paths,label_paths))
@@ -127,8 +129,8 @@ def gen_batch_function2(data_folder, image_shape):
                 image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
                 label_img = scipy.misc.imresize(scipy.misc.imread(gt_image_file), image_shape)
 
-                gt1 = np.all(label_img == road_color, axis=2)
-                gt2 = np.all(label_img == car_color, axis=2)
+                gt1 = np.all((label_img == road_color) | (label_img == roadline_color), axis=2)
+                gt2 = np.append(np.all(label_img[:490,:,:] == car_color, axis=2), np.all(label_img[490:,:,:] == np.array([222, 0, 0]), axis=2),axis=0)
                 gt3 = gt1 == gt2
                 gt1 = gt1.reshape(*gt1.shape,1)
                 gt2 = gt2.reshape(*gt2.shape,1)
