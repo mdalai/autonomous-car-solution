@@ -97,11 +97,21 @@ def gen_batch_function(data_folder, image_shape):
             yield np.array(images), np.array(gt_images)
     return get_batches_fn
 
-def gen_batch_function2(data_folder, image_shape):
+def crop_img(image, h1,h2,w1,w2,c1,c2):
+    """ cropping image size
+    :param image: binary image
+    :param h1,h2: crop height range
+    :param w1,w2: crop width range
+    :param c1,c2: crop channel range
+    :return: cropped image
+    """
+    image[h1:h2,w1:w2,c1:c2]
+
+
+def gen_batch_function2(data_folder):
     """
     Generate function to create batches of training data
     :param data_folder: Path to folder that contains all the datasets
-    :param image_shape: Tuple - Shape of image
     :return:
     """
     def get_batches_fn2(batch_size):
@@ -126,8 +136,9 @@ def gen_batch_function2(data_folder, image_shape):
             images = []
             gt_labels = []
             for image_file,gt_image_file in paths[batch_i:batch_i+batch_size]:
-                image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
-                label_img = scipy.misc.imresize(scipy.misc.imread(gt_image_file), image_shape)
+                # Crop the image, get rid of the pure car hood which is also gives a proper feed image size: (528,800)
+                image = scipy.misc.imread(image_file)[:528,:,:]
+                label_img = scipy.misc.imread(gt_image_file)[:528,:,:]
 
                 gt1 = np.all((label_img == road_color) | (label_img == roadline_color), axis=2)
                 gt2 = np.append(np.all(label_img[:490,:,:] == car_color, axis=2), np.all(label_img[490:,:,:] == np.array([222, 0, 0]), axis=2),axis=0)
@@ -173,7 +184,8 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
 
         yield os.path.basename(image_file), np.array(street_im)
 
-def gen_test_output2(sess, logits, keep_prob, image_pl, data_folder, image_shape):
+
+def gen_test_output2(sess, logits, keep_prob, image_pl, data_folder):
     """
     Generate test output using the test images
     :param sess: TF session
@@ -185,46 +197,15 @@ def gen_test_output2(sess, logits, keep_prob, image_pl, data_folder, image_shape
     :return: Output for for each test image
     """
     for image_file in glob(os.path.join(data_folder, '*.png')):
-        image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
+        image = scipy.misc.imread(image_file)[:528,:,:]
 
         im_softmax = sess.run(
             [tf.nn.softmax(logits)],
             {keep_prob: 1.0, image_pl: [image]})
-        im_softmax_car = im_softmax[0][:, 0].reshape(image_shape[0], image_shape[1])
-        im_softmax_road = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
-        segmentation_car = (im_softmax_car > 0.5).reshape(image_shape[0], image_shape[1], 1)
-        segmentation_road = (im_softmax_road > 0.5).reshape(image_shape[0], image_shape[1], 1)
-        mask_car = np.dot(segmentation_car, np.array([[255, 0, 0, 127]]))
-        mask_car = scipy.misc.toimage(mask_car, mode="RGBA")
-        mask_road = np.dot(segmentation_road, np.array([[0, 255, 0, 127]]))
-        mask_road = scipy.misc.toimage(mask_road, mode="RGBA")
-        street_im = scipy.misc.toimage(image)
-        street_im.paste(mask_car, box=None, mask=mask_car)
-        street_im.paste(mask_road, box=None, mask=mask_road)
-
-        yield os.path.basename(image_file), np.array(street_im)
-
-def gen_test_output2(sess, logits, keep_prob, image_pl, data_folder, image_shape):
-    """
-    Generate test output using the test images
-    :param sess: TF session
-    :param logits: TF Tensor for the logits
-    :param keep_prob: TF Placeholder for the dropout keep robability
-    :param image_pl: TF Placeholder for the image placeholder
-    :param data_folder: Path to the folder that contains the datasets
-    :param image_shape: Tuple - Shape of image
-    :return: Output for for each test image
-    """
-    for image_file in glob(os.path.join(data_folder, '*.png')):
-        image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
-
-        im_softmax = sess.run(
-            [tf.nn.softmax(logits)],
-            {keep_prob: 1.0, image_pl: [image]})
-        im_softmax_car = im_softmax[0][:, 0].reshape(image_shape[0], image_shape[1])
-        im_softmax_road = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
-        segmentation_car = (im_softmax_car > 0.5).reshape(image_shape[0], image_shape[1], 1)
-        segmentation_road = (im_softmax_road > 0.5).reshape(image_shape[0], image_shape[1], 1)
+        im_softmax_car = im_softmax[0][:, 0].reshape(image.shape[0], image.shape[1])
+        im_softmax_road = im_softmax[0][:, 1].reshape(image.shape[0], image.shape[1])
+        segmentation_car = (im_softmax_car > 0.5).reshape(image.shape[0], image.shape[1], 1)
+        segmentation_road = (im_softmax_road > 0.5).reshape(image.shape[0], image.shape[1], 1)
         mask_car = np.dot(segmentation_car, np.array([[255, 0, 0, 127]]))
         mask_car = scipy.misc.toimage(mask_car, mode="RGBA")
         mask_road = np.dot(segmentation_road, np.array([[0, 255, 0, 127]]))
@@ -246,7 +227,6 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
     # Run NN on test images and save them to HD
     print('Training Finished. Saving test images to: {}'.format(output_dir))
     image_outputs = gen_test_output2(
-        #sess, logits, keep_prob, input_image, os.path.join(data_dir, 'data_road/testing'), image_shape)
-        sess, logits, keep_prob, input_image, os.path.join(data_dir, 'test'), image_shape)
+        sess, logits, keep_prob, input_image, os.path.join(data_dir, 'test'))
     for name, image in image_outputs:
         scipy.misc.imsave(os.path.join(output_dir, name), image)
