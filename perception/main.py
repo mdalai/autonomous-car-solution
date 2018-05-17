@@ -9,7 +9,7 @@ import project_tests as tests
 
 #######--HYPER PARAMETERS--############################
 EPOCHS = 10 #20 #10
-BATCH_SIZE = 16 #32 16
+BATCH_SIZE = 8 #32 16
 KEEP_PROB = 0.5
 LEARNING_RATE = 0.0009 #0.00001 #0.0001 #0.0009
 REG_SCALE = 1e-3   # L2 regularizer scale

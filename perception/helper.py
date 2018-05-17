@@ -137,8 +137,8 @@ def gen_batch_function2(data_folder):
             gt_labels = []
             for image_file,gt_image_file in paths[batch_i:batch_i+batch_size]:
                 # Crop the image, get rid of the pure car hood which is also gives a proper feed image size: (528,800)
-                image = scipy.misc.imread(image_file)[:528,:,:]
-                label_img = scipy.misc.imread(gt_image_file)[:528,:,:]
+                image = scipy.misc.imread(image_file)[:544,:,:]
+                label_img = scipy.misc.imread(gt_image_file)[:544,:,:]
 
                 gt1 = np.all((label_img == road_color) | (label_img == roadline_color), axis=2)
                 gt2 = np.append(np.all(label_img[:490,:,:] == car_color, axis=2), np.all(label_img[490:,:,:] == np.array([222, 0, 0]), axis=2),axis=0)
@@ -197,7 +197,7 @@ def gen_test_output2(sess, logits, keep_prob, image_pl, data_folder):
     :return: Output for for each test image
     """
     for image_file in glob(os.path.join(data_folder, '*.png')):
-        image = scipy.misc.imread(image_file)[:528,:,:]
+        image = scipy.misc.imread(image_file)[:544,:,:]
 
         im_softmax = sess.run(
             [tf.nn.softmax(logits)],
