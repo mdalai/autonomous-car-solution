@@ -12,11 +12,11 @@ EPOCHS = 10 #20 #10
 BATCH_SIZE = 8 #32 16
 KEEP_PROB = 0.5
 LEARNING_RATE = 0.0009 #0.00001 #0.0001 #0.0009
-REG_SCALE = 1e-3   # L2 regularizer scale
+#REG_SCALE = 1e-3   # L2 regularizer scale
 INI_STDDEV = 1e-3  # Initializer stddev
 
 NUM_CLASSES = 3  # car,road,others
-IMAGE_SHAPE = (96, 128) # (528, 800) (96, 128) (480, 800) (160, 576)
+#IMAGE_SHAPE = (96, 128) # (528, 800) (96, 128) (480, 800) (160, 576)
 
 # Work Directory Settings
 DATA_DIR = './data'
@@ -80,49 +80,47 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     ####### Layer7 - 1x1 Convolution  #######################
     # Add L2 Regularizer to prevent overfitting to each layer
     # Add Initializer that generate tensors with a normal distribution to each layer
-    layer7_conv_1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes, 
-            kernel_size=1, strides=(1,1), padding='same', 
-            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), 
+    layer7_conv_1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes, \ 
+            kernel_size=1, strides=(1,1), padding='same', \
+            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
-    layer7_conv_1x1 = tf.Print(layer7_conv_1x1, [tf.shape(layer7_conv_1x1)], ">>>>>L7 Conv1x1:", first_n=2, summarize=4)
+    #layer7_conv_1x1 = tf.Print(layer7_conv_1x1, [tf.shape(layer7_conv_1x1)], ">>>>>L7 Conv1x1:", first_n=2, summarize=4)
     ####### Layer7 1x1 Conv output  - Upsample ##############
-    output = tf.layers.conv2d_transpose(layer7_conv_1x1, num_classes, 
-            kernel_size=4, strides=(2,2), padding='same', 
-            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), 
+    output = tf.layers.conv2d_transpose(layer7_conv_1x1, num_classes, \
+            kernel_size=4, strides=(2,2), padding='same', \
+            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
-    output = tf.Print(output, [tf.shape(output)], ">>>>>L7 Conv1x1 Upsample:", first_n=2,summarize=4)
-
+    #output = tf.Print(output, [tf.shape(output)], ">>>>>L7 Conv1x1 Upsample:", first_n=2,summarize=4)
     ####### Layer4 - 1x1 Convolution  #######################
-    layer4_conv_1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, 
-            kernel_size=1, strides=(1,1), padding='same', 
-            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), 
+    layer4_conv_1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, \
+            kernel_size=1, strides=(1,1), padding='same', \
+            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
-    layer4_conv_1x1 = tf.Print(layer4_conv_1x1, [tf.shape(layer4_conv_1x1)], ">>>>>L4 Conv1x1:",first_n=2, summarize=4)
+    #layer4_conv_1x1 = tf.Print(layer4_conv_1x1, [tf.shape(layer4_conv_1x1)], ">>>>>L4 Conv1x1:",first_n=2, summarize=4)
     ####### Skip connection  ################################
     input = tf.add(output, layer4_conv_1x1)
-    input = tf.Print(input, [tf.shape(input)], ">>>>>L7+L4 Skip Connection:",first_n=2, summarize=4)
+    #input = tf.Print(input, [tf.shape(input)], ">>>>>L7+L4 Skip Connection:",first_n=2, summarize=4)
     ####### Layer4 above 2 process  - Upsample ##############
-    output = tf.layers.conv2d_transpose(input, num_classes, 
-            kernel_size=4, strides = (2,2), padding='same', 
-            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), 
+    output = tf.layers.conv2d_transpose(input, num_classes, \
+            kernel_size=4, strides = (2,2), padding='same', \
+            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
-    output = tf.Print(output, [tf.shape(output)], ">>>>>L7&L4 Conv1x1 Upsample:",first_n=2, summarize=4)
+    #output = tf.Print(output, [tf.shape(output)], ">>>>>L7&L4 Conv1x1 Upsample:",first_n=2, summarize=4)
     ####### Layer3 - 1x1 Convolution  #######################
-    layer3_conv_1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, 
-            kernel_size=1, strides=(1,1), padding='same', 
-            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), 
+    layer3_conv_1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, \
+            kernel_size=1, strides=(1,1), padding='same', \
+            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
-    layer3_conv_1x1 = tf.Print(layer3_conv_1x1, [tf.shape(layer3_conv_1x1)], ">>>>>L3 Conv1x1:",first_n=2, summarize=4)
+    #layer3_conv_1x1 = tf.Print(layer3_conv_1x1, [tf.shape(layer3_conv_1x1)], ">>>>>L3 Conv1x1:",first_n=2, summarize=4)
     ####### Skip connection  ################################
     input = tf.add(output, layer3_conv_1x1)
-    input = tf.Print(input, [tf.shape(input)], ">>>>>L7+L4+L3 Skip Connection:",first_n=2, summarize=4)
-   ####### Layer3 above 2 process  - Upsample ###############
-    output = tf.layers.conv2d_transpose(input, num_classes, 
-            kernel_size=16, strides = (8,8), padding='same', 
-            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), 
+    #input = tf.Print(input, [tf.shape(input)], ">>>>>L7+L4+L3 Skip Connection:",first_n=2, summarize=4)
+    ####### Layer3 above 2 process  - Upsample ###############
+    output = tf.layers.conv2d_transpose(input, num_classes, \
+            kernel_size=16, strides = (8,8), padding='same', \
+            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
-    output = tf.Print(output, [tf.shape(output)], ">>>>>L7&L4&L3 Conv1x1 Upsample:",first_n=2, summarize=4)
-
+    #output = tf.Print(output, [tf.shape(output)], ">>>>>L7&L4&L3 Conv1x1 Upsample:",first_n=2, summarize=4)
 
     return output
 

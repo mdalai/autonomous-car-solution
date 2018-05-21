@@ -11,6 +11,33 @@ from glob import glob
 from urllib.request import urlretrieve
 from tqdm import tqdm
 
+############## DATA PRE-Processing BEGIN ################################
+# Vehicles - class 10
+CAR_COLOR = np.array([10, 0, 0])
+# Roads - class 7
+ROAD_COLOR = np.array([7, 0, 0])
+# RoadLines - class 6
+ROADLINE_COLOR = np.array([6, 0, 0])
+
+def data_preprocess(img_path, label_path):
+    train_img = mpimg.imread(img_path)
+    label_img = scipy.misc.imread(label_path)
+    train_img = train_img[170:522,:,:]
+    label_img = label_img[170:522,:,:]
+    
+    # label processing
+    gt1 = np.all((label_img == ROAD_COLOR) | (label_img == ROADLINE_COLOR), axis=2)
+    gt2 = np.append(np.all(label_img[:320,:,:] == CAR_COLOR, axis=2), \
+                    np.all(label_img[320:,:,:] == np.array([222, 0, 0]), axis=2),axis=0)
+    gt3 = gt1 == gt2
+    gt1 = gt1.reshape(*gt1.shape,1)
+    gt2 = gt2.reshape(*gt2.shape,1)
+    gt3 = gt3.reshape(*gt3.shape,1)
+    gt_label = np.concatenate((gt2, gt1, gt3), axis=2)
+    
+    return train_img, gt_label.astype('uint8')  
+
+############## DATA PRE-Processing END #################################
 
 class DLProgress(tqdm):
     last_block = 0
@@ -97,16 +124,6 @@ def gen_batch_function(data_folder, image_shape):
             yield np.array(images), np.array(gt_images)
     return get_batches_fn
 
-def crop_img(image, h1,h2,w1,w2,c1,c2):
-    """ cropping image size
-    :param image: binary image
-    :param h1,h2: crop height range
-    :param w1,w2: crop width range
-    :param c1,c2: crop channel range
-    :return: cropped image
-    """
-    image[h1:h2,w1:w2,c1:c2]
-
 
 def gen_batch_function2(data_folder):
     """
@@ -122,12 +139,6 @@ def gen_batch_function2(data_folder):
         """
         image_paths = glob(os.path.join(data_folder, 'CameraRGB', '*.png'))
         label_paths = glob(os.path.join(data_folder, 'CameraSeg', '*.png'))
-        # Vehicles - class 10
-        car_color = np.array([10, 0, 0])
-        # Roads - class 7
-        road_color = np.array([7, 0, 0])
-        # RoadLines - class 6
-        roadline_color = np.array([6, 0, 0])
 
         # pair image_paths and label_paths before shuffle
         paths = list(zip(image_paths,label_paths))
@@ -136,18 +147,8 @@ def gen_batch_function2(data_folder):
             images = []
             gt_labels = []
             for image_file,gt_image_file in paths[batch_i:batch_i+batch_size]:
-                # Crop the image, get rid of the pure car hood which is also gives a proper feed image size: (528,800)
-                image = scipy.misc.imread(image_file)[:544,:,:]
-                label_img = scipy.misc.imread(gt_image_file)[:544,:,:]
-
-                gt1 = np.all((label_img == road_color) | (label_img == roadline_color), axis=2)
-                gt2 = np.append(np.all(label_img[:490,:,:] == car_color, axis=2), np.all(label_img[490:,:,:] == np.array([222, 0, 0]), axis=2),axis=0)
-                gt3 = gt1 == gt2
-                gt1 = gt1.reshape(*gt1.shape,1)
-                gt2 = gt2.reshape(*gt2.shape,1)
-                gt3 = gt3.reshape(*gt3.shape,1)
-                gt_label = np.concatenate((gt2, gt1, gt3), axis=2)
-
+                # data preprocessing
+                image,gt_label = data_preprocess(image_file, gt_image_file)
                 images.append(image)
                 gt_labels.append(gt_label)
 
