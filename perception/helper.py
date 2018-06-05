@@ -10,6 +10,8 @@ import tensorflow as tf
 from glob import glob
 from urllib.request import urlretrieve
 from tqdm import tqdm
+import matplotlib.image as mpimg
+import cv2
 
 ############## DATA PRE-Processing BEGIN ################################
 # Vehicles - class 10
@@ -20,15 +22,20 @@ ROAD_COLOR = np.array([7, 0, 0])
 ROADLINE_COLOR = np.array([6, 0, 0])
 
 def data_preprocess(img_path, label_path):
-    train_img = mpimg.imread(img_path)
+    train_img = scipy.misc.imread(img_path)
+    #train_img = mpimg.imread(img_path)
     label_img = scipy.misc.imread(label_path)
-    train_img = train_img[170:522,:,:]
-    label_img = label_img[170:522,:,:]
-    
+    #train_img = train_img[170:522,:,:]
+    #label_img = label_img[170:522,:,:]
+    #train_img = train_img[138:522,:,:]
+    #label_img = label_img[138:522,:,:]
+    train_img = train_img[42:522,:,:]
+    label_img = label_img[42:522,:,:]
+
     # label processing
     gt1 = np.all((label_img == ROAD_COLOR) | (label_img == ROADLINE_COLOR), axis=2)
-    gt2 = np.append(np.all(label_img[:320,:,:] == CAR_COLOR, axis=2), \
-                    np.all(label_img[320:,:,:] == np.array([222, 0, 0]), axis=2),axis=0)
+    gt2 = np.append(np.all(label_img[:452,:,:] == CAR_COLOR, axis=2), \
+                    np.all(label_img[452:,:,:] == np.array([222, 0, 0]), axis=2),axis=0)
     gt3 = gt1 == gt2
     gt1 = gt1.reshape(*gt1.shape,1)
     gt2 = gt2.reshape(*gt2.shape,1)
@@ -37,6 +44,39 @@ def data_preprocess(img_path, label_path):
     
     return train_img, gt_label.astype('uint8')  
 
+def translate(img,x,y):    
+    M = np.float32([[1,0,x],[0,1,y]])
+    rows,cols,_ = img.shape
+    return cv2.warpAffine(img,M,(cols,rows),borderMode=cv2.BORDER_REFLECT)
+
+def brightness(img):
+    x= random.randint(-150,150)
+    table = np.array([i+x for i in np.arange(0, 256)])
+    table[table<0]=0
+    table[table>255]=255
+    table=table.astype("uint8")
+    # apply gamma correction using the lookup table
+    return cv2.LUT(img, table)
+
+
+def img_scale(img, fx, fy):
+    return cv2.resize(img, None, fx=fx, fy=fy)
+
+def data_preprocess2(img_path, label_path):
+    train_img = scipy.misc.imread(img_path)
+    label_img = scipy.misc.imread(label_path)
+    train_img = train_img[42:522,:,:]
+    label_img = label_img[42:522,:,:]
+
+    # label processing
+    gt2 = np.append(np.all(label_img[:452,:,:] == CAR_COLOR, axis=2), \
+                    np.all(label_img[452:,:,:] == np.array([222, 0, 0]), axis=2),axis=0)
+    gt3 = np.logical_not(gt2)
+    gt2 = gt2.reshape(*gt2.shape,1)
+    gt3 = gt3.reshape(*gt3.shape,1)
+    gt_label = np.concatenate((gt2, gt3), axis=2)
+    
+    return train_img, gt_label.astype('uint8')
 ############## DATA PRE-Processing END #################################
 
 class DLProgress(tqdm):
@@ -84,47 +124,6 @@ def maybe_download_pretrained_vgg(data_dir):
         # Remove zip file to save space
         os.remove(os.path.join(vgg_path, vgg_filename))
 
-
-def gen_batch_function(data_folder, image_shape):
-    """
-    Generate function to create batches of training data
-    :param data_folder: Path to folder that contains all the datasets
-    :param image_shape: Tuple - Shape of image
-    :return:
-    """
-    def get_batches_fn(batch_size):
-        """
-        Create batches of training data
-        :param batch_size: Batch Size
-        :return: Batches of training data
-        """
-        image_paths = glob(os.path.join(data_folder, 'image_2', '*.png'))
-        label_paths = {
-            re.sub(r'_(lane|road)_', '_', os.path.basename(path)): path
-            for path in glob(os.path.join(data_folder, 'gt_image_2', '*_road_*.png'))}
-        background_color = np.array([255, 0, 0])
-
-        random.shuffle(image_paths)
-        for batch_i in range(0, len(image_paths), batch_size):
-            images = []
-            gt_images = []
-            for image_file in image_paths[batch_i:batch_i+batch_size]:
-                gt_image_file = label_paths[os.path.basename(image_file)]
-
-                image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
-                gt_image = scipy.misc.imresize(scipy.misc.imread(gt_image_file), image_shape)
-
-                gt_bg = np.all(gt_image == background_color, axis=2)
-                gt_bg = gt_bg.reshape(*gt_bg.shape, 1)
-                gt_image = np.concatenate((gt_bg, np.invert(gt_bg)), axis=2)
-
-                images.append(image)
-                gt_images.append(gt_image)
-
-            yield np.array(images), np.array(gt_images)
-    return get_batches_fn
-
-
 def gen_batch_function2(data_folder):
     """
     Generate function to create batches of training data
@@ -148,42 +147,81 @@ def gen_batch_function2(data_folder):
             gt_labels = []
             for image_file,gt_image_file in paths[batch_i:batch_i+batch_size]:
                 # data preprocessing
-                image,gt_label = data_preprocess(image_file, gt_image_file)
+                image,gt_label = data_preprocess2(image_file, gt_image_file)
+                image = img_scale(image,1/5,1/5)
+                gt_label = img_scale(gt_label,1/5,1/5)
+
                 images.append(image)
                 gt_labels.append(gt_label)
 
-            #print("Batch: {}, Feature Shape: {}, Label Shape: {}.".
-            #format(batch_i,np.array(images).shape,np.array(gt_labels).shape))
+                """
+                for i in range(3):
+                    # Brightness
+                    image = brightness(image)
+
+                    images.append(image)
+                    gt_labels.append(gt_label)
+
+                    if len(images) >= batch_size:
+                        yield np.array(images), np.array(gt_labels)
+                        images = []
+                        gt_labels = []
+                """
+
+                
+                # Flip image
+                #images.append(image[:,::-1,:])
+                #gt_labels.append(gt_label[:,::-1,:])
+
+                """
+                # Augmentation
+                for i in range(3):
+                    # Random translate x,y
+                    x = random.randint(-100,100)
+                    y = random.randint(-30,30)
+                    image = translate(image,x,y)
+                    gt_label = translate(gt_label,x,y)
+                    # Brightness
+                    image = brightness(image)
+
+                    images.append(image)
+                    gt_labels.append(gt_label)
+                    
+                    # Flip image
+                    images.append(image[:,::-1,:])
+                    gt_labels.append(gt_label[:,::-1,:])
+
+                if len(images) >= batch_size:
+                    yield np.array(images), np.array(gt_labels)
+                    images = []
+                    gt_labels = []
+
+                """
+
 
             yield np.array(images), np.array(gt_labels)
     return get_batches_fn2
 
+def val_gen_batch_function(data_folder):
+    def val_get_batches_fn(batch_size):
+        image_paths = glob(os.path.join(data_folder, 'CameraRGB', '*.png'))
+        label_paths = glob(os.path.join(data_folder, 'CameraSeg', '*.png'))
 
-def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape):
-    """
-    Generate test output using the test images
-    :param sess: TF session
-    :param logits: TF Tensor for the logits
-    :param keep_prob: TF Placeholder for the dropout keep robability
-    :param image_pl: TF Placeholder for the image placeholder
-    :param data_folder: Path to the folder that contains the datasets
-    :param image_shape: Tuple - Shape of image
-    :return: Output for for each test image
-    """
-    for image_file in glob(os.path.join(data_folder, '*.png')):
-        image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
-
-        im_softmax = sess.run(
-            [tf.nn.softmax(logits)],
-            {keep_prob: 1.0, image_pl: [image]})
-        im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
-        segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
-        mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
-        mask = scipy.misc.toimage(mask, mode="RGBA")
-        street_im = scipy.misc.toimage(image)
-        street_im.paste(mask, box=None, mask=mask)
-
-        yield os.path.basename(image_file), np.array(street_im)
+        # pair image_paths and label_paths before shuffle
+        paths = list(zip(image_paths,label_paths))
+        random.shuffle(paths)
+        for batch_i in range(0, len(image_paths), batch_size):
+            images = []
+            gt_labels = []
+            for image_file,gt_image_file in paths[batch_i:batch_i+batch_size]:
+                # data preprocessing
+                image,gt_label = data_preprocess2(image_file, gt_image_file)
+                image = img_scale(image,1/5,1/5)
+                gt_label = img_scale(gt_label,1/5,1/5)
+                images.append(image)
+                gt_labels.append(gt_label)
+            yield np.array(images), np.array(gt_labels)
+    return val_get_batches_fn
 
 
 def gen_test_output2(sess, logits, keep_prob, image_pl, data_folder):
@@ -198,7 +236,9 @@ def gen_test_output2(sess, logits, keep_prob, image_pl, data_folder):
     :return: Output for for each test image
     """
     for image_file in glob(os.path.join(data_folder, '*.png')):
-        image = scipy.misc.imread(image_file)[:544,:,:]
+        image = scipy.misc.imread(image_file)[42:522,:,:]
+        #image = scipy.misc.imread(image_file)[170:522,:,:]
+        image = img_scale(image,1/5,1/5)
 
         im_softmax = sess.run(
             [tf.nn.softmax(logits)],

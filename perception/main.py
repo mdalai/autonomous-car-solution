@@ -4,27 +4,36 @@ import helper
 import warnings
 from distutils.version import LooseVersion
 import project_tests as tests
+from my_utils import session_config, save_model, create_predictions
+from eval import eval_nn, weighted_loss
+import numpy as np
+import sys
+from sms import send_sms
 #import csv
 
 
 #######--HYPER PARAMETERS--############################
-EPOCHS = 10 #20 #10
-BATCH_SIZE = 8 #32 16
+EPOCHS = 40 #20 #10
+BATCH_SIZE = 32 #32 16 8
 KEEP_PROB = 0.5
 LEARNING_RATE = 0.0009 #0.00001 #0.0001 #0.0009
-#REG_SCALE = 1e-3   # L2 regularizer scale
+REG_SCALE = 1e-3   # L2 regularizer scale
 INI_STDDEV = 1e-3  # Initializer stddev
 
 NUM_CLASSES = 3  # car,road,others
-#IMAGE_SHAPE = (96, 128) # (528, 800) (96, 128) (480, 800) (160, 576)
+IMAGE_SHAPE = (96, 160) #(480, 800)  (352, 800) (96, 128) (480, 800) (160, 576)
 
 # Work Directory Settings
 DATA_DIR = './data'
 RUNS_DIR = './runs'
-#MODEL_SAVE_FILE = './model/FCN_train_model.ckpt'
+CKPT_DIR = './data/model13/model13'
+SAVE_DIR = './data/model13/savedmodel'
 
-# save loss in csv file
-#LOSS_FILE = 'loss.csv'
+SAVE_RECORD = 0
+
+LOSS_WEIGHT = np.array([0.57,0.28,0.15]) # class 0:car, 1:road, 2: none
+#LOSS_WEIGHT = np.array([0.55,0.30,0.15]) # class 0:car, 1:road, 2: none
+#LOSS_WEIGHT = np.array([0.50,0.25,0.25]) # class 0:car, 1:road, 2: none
 
 
 # Check TensorFlow Version
@@ -80,21 +89,21 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     ####### Layer7 - 1x1 Convolution  #######################
     # Add L2 Regularizer to prevent overfitting to each layer
     # Add Initializer that generate tensors with a normal distribution to each layer
-    layer7_conv_1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes, \ 
+    layer7_conv_1x1 = tf.layers.conv2d(vgg_layer7_out, num_classes,
             kernel_size=1, strides=(1,1), padding='same', \
-            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
+            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
     #layer7_conv_1x1 = tf.Print(layer7_conv_1x1, [tf.shape(layer7_conv_1x1)], ">>>>>L7 Conv1x1:", first_n=2, summarize=4)
     ####### Layer7 1x1 Conv output  - Upsample ##############
     output = tf.layers.conv2d_transpose(layer7_conv_1x1, num_classes, \
             kernel_size=4, strides=(2,2), padding='same', \
-            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
+            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
     #output = tf.Print(output, [tf.shape(output)], ">>>>>L7 Conv1x1 Upsample:", first_n=2,summarize=4)
     ####### Layer4 - 1x1 Convolution  #######################
     layer4_conv_1x1 = tf.layers.conv2d(vgg_layer4_out, num_classes, \
             kernel_size=1, strides=(1,1), padding='same', \
-            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
+            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
     #layer4_conv_1x1 = tf.Print(layer4_conv_1x1, [tf.shape(layer4_conv_1x1)], ">>>>>L4 Conv1x1:",first_n=2, summarize=4)
     ####### Skip connection  ################################
@@ -103,13 +112,13 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     ####### Layer4 above 2 process  - Upsample ##############
     output = tf.layers.conv2d_transpose(input, num_classes, \
             kernel_size=4, strides = (2,2), padding='same', \
-            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
+            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
     #output = tf.Print(output, [tf.shape(output)], ">>>>>L7&L4 Conv1x1 Upsample:",first_n=2, summarize=4)
     ####### Layer3 - 1x1 Convolution  #######################
     layer3_conv_1x1 = tf.layers.conv2d(vgg_layer3_out, num_classes, \
             kernel_size=1, strides=(1,1), padding='same', \
-            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
+            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
     #layer3_conv_1x1 = tf.Print(layer3_conv_1x1, [tf.shape(layer3_conv_1x1)], ">>>>>L3 Conv1x1:",first_n=2, summarize=4)
     ####### Skip connection  ################################
@@ -118,7 +127,7 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
     ####### Layer3 above 2 process  - Upsample ###############
     output = tf.layers.conv2d_transpose(input, num_classes, \
             kernel_size=16, strides = (8,8), padding='same', \
-            #kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
+            kernel_regularizer = tf.contrib.layers.l2_regularizer(REG_SCALE), \
             kernel_initializer=tf.random_normal_initializer(stddev=INI_STDDEV) )
     #output = tf.Print(output, [tf.shape(output)], ">>>>>L7&L4&L3 Conv1x1 Upsample:",first_n=2, summarize=4)
 
@@ -141,18 +150,22 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     ### Reshape 4D tensor to 2D tensor
     labels = tf.reshape(correct_label, (-1, num_classes), name='labels_2d')
     ### use Cross Entropy Loss
-    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits= logits, labels= labels), name = 'loss')
+    #cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits= logits, labels= labels), name = 'loss')
+    #labels = tf.argmax(labels, axis=1)
+    #loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=labels), name = 'loss')
+    
+    loss = weighted_loss(logits, labels, num_classes, head=LOSS_WEIGHT)
     ### adapt Adam optimizer
-    train_op = tf.train.AdamOptimizer(learning_rate= learning_rate).minimize(cross_entropy_loss)    
+    train_op = tf.train.AdamOptimizer(learning_rate= learning_rate).minimize(loss)    
 
-    return logits, train_op, cross_entropy_loss
+    return logits, train_op, loss
 
 
-tests.test_optimize(optimize)
+#tests.test_optimize(optimize)
 
 
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
-             correct_label, keep_prob, learning_rate):
+             correct_label, keep_prob, learning_rate, logits, image_shape, val_get_batches_fn):
     """
     Train neural network and print out the loss during training.
     :param sess: TF Session
@@ -166,25 +179,44 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
     :param keep_prob: TF Placeholder for dropout keep probability
     :param learning_rate: TF Placeholder for learning rate
     """
-    losses =[]
+
+    # TF saver object
+    saver = tf.train.Saver()
+
+    if SAVE_RECORD == 1:
+        orig_stdout = sys.stdout
+        file1 = open('out.txt', 'w')
+        sys.stdout = file1
+
     loss = 10000.0
     for epoch in range(epochs):
         for images, labels in get_batches_fn(batch_size):
             #print("Feature Shape: {}, Label Shape: {}.".format(images.shape,labels.shape))
             _, loss = sess.run([train_op, cross_entropy_loss], 
-                feed_dict = { input_image: images, correct_label: labels, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE })
+                feed_dict = { input_image: images, correct_label: labels, keep_prob: KEEP_PROB, learning_rate: LEARNING_RATE })  
+        
+        f_car,f_road,f,val_loss = eval_nn(sess, batch_size, val_get_batches_fn, \
+                    logits, cross_entropy_loss, input_image, keep_prob, image_shape,correct_label)
 
-            #print("Logits Shape: {}, Logits: {}.".format(logits.shape,logits))           
-        print("EPOCH: {}".format(epoch + 1), " / {}".format(epochs), " Loss: {:.3f}".format(loss) )
+        print("EPOCH: {}".format(epoch + 1), " / {}".format(epochs), " Loss: {:.3f}".format(loss), " F_Car: {:.3f}".format(f_car), " F_Road: {:.3f}".format(f_road)," F_: {:.3f}".format(f)," V_Loss: {:.3f}".format(val_loss) ) 
 
-        losses.append('{:3f}'.format(loss))
+        #if (epoch+1)%2==0:
+        #      send_sms("Loss:{:.3f}  F_Car: {:.3f}  F_Road: {:.3f} F_: {:.3f}".format(loss,f_car,f_road,f))
+        
+        if (epoch+1)%10==0:
+            # TF save the graph and checkpoint
+            ckpt_dir = "./data/model14{}/model14{}".format(epoch+1,epoch+1)
+            saver.save(sess, ckpt_dir )
+            print("Finish saving the epoch-{} CKPT model!".format(epoch+1))
+            #send_sms("Finish saving the epoch-{} CKPT model!".format(epoch+1))
     
-    print()
-    print(losses) 
-    # save the model
-    #saver.save(sess, MODEL_SAVE_FILE) 
+    if SAVE_RECORD == 1:
+        sys.stdout = orig_stdout
+        file1.close()
+
+    #send_sms("Loss:{:.3f}  F_Car: {:.3f}  F_Road: {:.3f} F_: {:.3f}".format(loss,f_car,f_road,f))          
     
-tests.test_train_nn(train_nn)
+#tests.test_train_nn(train_nn)
 
 
 def run():
@@ -198,11 +230,16 @@ def run():
     # You'll need a GPU with at least 10 teraFLOPS to train on.
     #  https://www.cityscapes-dataset.com/
 
-    with tf.Session() as sess:
+    config = session_config()
+
+    with tf.Session(config=config) as sess:
         # Path to vgg model
         vgg_path = os.path.join(DATA_DIR, 'vgg')
         # Create function to get batches
         get_batches_fn = helper.gen_batch_function2(os.path.join(DATA_DIR, 'Train'))
+        # for validation
+        val_get_batches_fn = helper.val_gen_batch_function(os.path.join(DATA_DIR, 'val'))
+        
 
         # OPTIONAL: Augment Images for better results
         #  https://datascience.stackexchange.com/questions/5224/how-to-prepare-augment-images-for-neural-network
@@ -221,22 +258,33 @@ def run():
 
         ####### Cost & Optimization ###########
         logits, train_op, cross_entropy_loss = optimize(nn_last_layer, labels, learning_rate, NUM_CLASSES)
+        
+        pred_softmax,pred_class = create_predictions(logits)
+
 
         # initialize variables      
         sess.run(tf.global_variables_initializer())
 
         # TF saver object
-        saver = tf.train.Saver()
+        #saver = tf.train.Saver()
 
         # TODO: Train NN using the train_nn function
-        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, image_input, labels, keep_prob, learning_rate)
+        #train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, image_input, labels, keep_prob, learning_rate)
+        train_nn(sess, EPOCHS, BATCH_SIZE, get_batches_fn, train_op, cross_entropy_loss, image_input, \
+                labels, keep_prob,learning_rate, \
+                logits,IMAGE_SHAPE,val_get_batches_fn)
 
         # TF save the graph and checkpoint
-        saver.save(sess,'data/model1/model1')
-        print("Finish saving the model!")
+        #saver.save(sess, CKPT_DIR )
+        #print("Finish saving the CKPT model!")
+
+        # save model
+        """ save trained model using SavedModelBuilder """
+        #save_model(sess, SAVE_DIR)
+        #print("Finish saving the SavedModel!")
 
         # TODO: Save inference data using helper.save_inference_samples
-        helper.save_inference_samples(RUNS_DIR, DATA_DIR, sess, IMAGE_SHAPE, logits, keep_prob, image_input)
+        #helper.save_inference_samples(RUNS_DIR, DATA_DIR, sess, IMAGE_SHAPE, logits, keep_prob, image_input)
 
         # OPTIONAL: Apply the trained model to a video
 
