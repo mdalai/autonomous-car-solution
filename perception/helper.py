@@ -23,7 +23,6 @@ ROADLINE_COLOR = np.array([6, 0, 0])
 
 def data_preprocess(img_path, label_path):
     train_img = scipy.misc.imread(img_path)
-    #train_img = mpimg.imread(img_path)
     label_img = scipy.misc.imread(label_path)
     #train_img = train_img[170:522,:,:]
     #label_img = label_img[170:522,:,:]
@@ -147,7 +146,7 @@ def gen_batch_function2(data_folder):
             gt_labels = []
             for image_file,gt_image_file in paths[batch_i:batch_i+batch_size]:
                 # data preprocessing
-                image,gt_label = data_preprocess2(image_file, gt_image_file)
+                image,gt_label = data_preprocess(image_file, gt_image_file)
                 image = img_scale(image,1/5,1/5)
                 gt_label = img_scale(gt_label,1/5,1/5)
 
